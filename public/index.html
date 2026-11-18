@@ -1,0 +1,56 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Lucky Spin 🎡</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:system-ui,sans-serif;color:#fff;background:radial-gradient(circle at top,#3b1a7a,#12062b 70%);display:flex;justify-content:center;padding:16px}
+.wrap{width:100%;max-width:460px;text-align:center}h1{margin:8px 0 4px}.card{background:#ffffff14;border:1px solid #ffffff25;border-radius:16px;padding:18px;margin:14px 0}
+input{width:100%;padding:12px;margin:6px 0;border-radius:10px;border:0;font-size:16px}button{cursor:pointer;border:0;border-radius:10px;padding:12px 18px;font-size:16px;font-weight:700;background:#ffb400;color:#222}
+button:disabled{opacity:.5;cursor:not-allowed}button.alt{background:#ffffff25;color:#fff}.err{color:#ff8a8a;min-height:20px;margin-top:6px}
+#box{position:relative;width:min(88vw,380px);margin:10px auto}#wheel{width:100%;display:block;transition:transform 5.5s cubic-bezier(.12,.7,.1,1);border-radius:50%;box-shadow:0 0 30px #ffb40080}
+#ptr{position:absolute;left:50%;top:-12px;transform:translateX(-50%);font-size:34px;filter:drop-shadow(0 2px 2px #000)}
+.pts{display:flex;justify-content:space-between;align-items:center}.hide{display:none}
+#modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:9}#modal .card{background:#2a1060;max-width:340px}
+#big{font-size:80px}.rain{position:fixed;top:-40px;font-size:28px;animation:fall 3s linear forwards;z-index:10;pointer-events:none}@keyframes fall{to{transform:translateY(110vh) rotate(360deg)}}
+ul{list-style:none;padding:0;margin:6px 0;text-align:left}li{padding:4px 0;border-bottom:1px solid #ffffff15}
+</style></head><body><div class="wrap">
+<h1>🎡 Lucky Spin</h1><div style="opacity:.8">Spin the wheel &amp; try your luck!</div>
+<div id="auth" class="card">
+ <div id="nameRow"><input id="name" placeholder="Your name" maxlength="30"></div>
+ <input id="user" placeholder="Username" maxlength="20" autocapitalize="none"><input id="pass" type="password" placeholder="Password">
+ <button id="go">Create account</button> <button class="alt" id="swap">I have an account</button><div class="err" id="aerr"></div>
+</div>
+<div id="game" class="hide">
+ <div class="card pts"><div>👤 <b id="who"></b></div><div>⭐ <b id="pts">0</b> pts <button class="alt" id="out" style="padding:6px 10px;font-size:13px">Logout</button></div></div>
+ <div id="box"><div id="ptr">🔻</div><canvas id="wheel" width="760" height="760"></canvas></div>
+ <div class="card"><input id="sname" placeholder="Enter your name to spin" maxlength="30">
+  <button id="spin" style="width:100%;font-size:20px;margin-top:6px">SPIN (<span id="cost">100</span> pts)</button><div class="err" id="serr"></div></div>
+ <div class="card"><b>My Prizes</b><ul id="hist"></ul></div>
+</div></div>
+<div id="modal" class="hide"><div class="card"><div id="big"></div><h2 id="mt"></h2><p id="mp"></p><button id="close">OK</button></div></div>
+<script>
+let token=localStorage.tok||'',mode='signup',prizes=[],cost=100,rot=0,busy=false;const $=i=>document.getElementById(i);
+const COL=['#e63946','#2a9d8f','#f4a261','#6a4c93','#1d8fe1','#e9c46a','#ef476f'];
+async function api(p,b){const r=await fetch('/api/'+p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:b?JSON.stringify(b):undefined});
+ const j=await r.json().catch(()=>({error:'Network error'}));if(!r.ok)throw Object.assign(new Error(j.error||'Error'),{code:r.status});return j}
+function draw(){const c=$('wheel'),x=c.getContext('2d'),n=prizes.length,s=2*Math.PI/n,R=370;x.clearRect(0,0,760,760);
+ prizes.forEach((p,i)=>{const a=-Math.PI/2+i*s;x.beginPath();x.moveTo(380,380);x.arc(380,380,R,a,a+s);x.fillStyle=COL[i%COL.length];x.fill();x.strokeStyle='#fff';x.lineWidth=4;x.stroke();
+  x.save();x.translate(380,380);x.rotate(a+s/2);x.textAlign='right';x.fillStyle='#fff';x.textBaseline='middle';
+  if(p.label){x.font='bold 30px sans-serif';x.fillText(p.label.replace(/ (Phone|Topup)/,''),R-70,0);x.font='44px sans-serif';x.fillText(p.emoji,R-14,0)}else{x.font='70px sans-serif';x.fillText(p.emoji,R-70,0)}x.restore()});
+ x.beginPath();x.arc(380,380,34,0,7);x.fillStyle='#fff';x.fill()}
+function show(d){prizes=d.prizes;cost=d.cost;$('cost').textContent=cost;draw();$('auth').classList.add('hide');$('game').classList.remove('hide');setUser(d.user);
+ if(d.mySpins)$('hist').innerHTML=d.mySpins.map(s=>`<li>${s.emoji} ${s.label||''} <small style="opacity:.6">${new Date(s.time).toLocaleString()}</small></li>`).join('')||'<li style="opacity:.6">Nothing yet</li>'}
+function setUser(u){$('spin').disabled=u.spun;$('who').textContent=u.name;$('pts').textContent=u.points;if(!$('sname').value)$('sname').value=u.name}
+async function boot(){if(!token)return;try{show(await api('me'))}catch{localStorage.removeItem('tok');token=''}}
+$('swap').onclick=()=>{mode=mode==='signup'?'login':'signup';$('nameRow').classList.toggle('hide',mode==='login');$('go').textContent=mode==='signup'?'Create account':'Login';$('swap').textContent=mode==='signup'?'I have an account':'New here? Sign up';$('aerr').textContent=''};
+$('go').onclick=async()=>{$('aerr').textContent='';try{const d=await api(mode,{name:$('name').value,username:$('user').value,password:$('pass').value});token=d.token;localStorage.tok=token;show(await api('me'))}catch(e){$('aerr').textContent=e.message}};
+$('out').onclick=()=>{localStorage.removeItem('tok');location.reload()};
+$('spin').onclick=async()=>{if(busy)return;$('serr').textContent='';busy=true;$('spin').disabled=true;
+ try{const d=await api('spin',{name:$('sname').value}),n=prizes.length,seg=360/n;
+  const target=-((d.index+.5)*seg+(Math.random()-.5)*seg*.7);let delta=((target-rot)%360+360)%360;rot+=360*6+delta;
+  $('wheel').style.transform=`rotate(${rot}deg)`;
+  setTimeout(()=>{$('pts').textContent=d.points;result(d.prize);busy=false;api('me').then(show).catch(()=>{})},5700)}
+ catch(e){$('serr').textContent=e.message;busy=false;$('spin').disabled=false;if(e.code===401){localStorage.removeItem('tok');setTimeout(()=>location.reload(),1200)}}};
+function result(p){const clown=!p.label;$('big').textContent=p.emoji;$('mt').textContent=clown?'🤡🤡🤡':'🎉 You got!';$('mp').textContent=clown?'':p.label+'! Contact admin to claim your reward.';$('modal').classList.remove('hide');
+ if(!clown)for(let i=0;i<30;i++){const e=document.createElement('div');e.className='rain';e.textContent=['🎉','✨','💎','🎊'][i%4];e.style.left=Math.random()*100+'vw';e.style.animationDelay=Math.random()*1.5+'s';document.body.appendChild(e);setTimeout(()=>e.remove(),5000)}}
+$('close').onclick=()=>$('modal').classList.add('hide');
+boot();
+</script></body></html>

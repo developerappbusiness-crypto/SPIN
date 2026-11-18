@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#111827;color:#e5e7eb}h2{margin:22px 0 8px}input{padding:8px;border-radius:6px;border:0;margin:2px}button{padding:6px 10px;border:0;border-radius:6px;background:#f59e0b;cursor:pointer;margin:1px}
+button.r{background:#ef4444;color:#fff}button.g{background:#10b981}.t{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:6px 8px;border-bottom:1px solid #374151;text-align:left;white-space:nowrap}.err{color:#f87171}.bar{display:flex;gap:10px;flex-wrap:wrap}.bar div{background:#1f2937;padding:10px 16px;border-radius:8px}</style></head><body>
+<h1>🛠 Admin Panel</h1>
+<div id="login"><input id="pw" type="password" placeholder="Admin password"><button id="lg">Login</button> <span class="err" id="e"></span></div>
+<div id="main" style="display:none">
+<div class="bar" id="stats"></div>
+<h2>Users</h2><div class="t"><table id="users"></table></div>
+<h2>Settings (chances must total 100)</h2><div id="set"></div>
+<h2>Spin log</h2><div class="t"><table id="spins"></table></div>
+<h2>IP locks</h2><div class="t"><table id="ips"></table></div></div>
+<script>
+let tok=sessionStorage.at||'';const $=i=>document.getElementById(i),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(p,b){const r=await fetch('/api/admin/'+p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:b?JSON.stringify(b):undefined});const j=await r.json();if(!r.ok)throw Object.assign(new Error(j.error),{code:r.status});return j}
+async function act(p,b){try{await api(p,b);load()}catch(e){alert(e.message)}}
+$('lg').onclick=async()=>{try{const d=await api('login',{password:$('pw').value});tok=d.token;sessionStorage.at=tok;load()}catch(e){$('e').textContent=e.message}};
+async function load(){try{const d=await api('data');$('login').style.display='none';$('main').style.display='block';
+ $('stats').innerHTML=[['Users',d.users.length],['Spins',d.spins.length],['Wins',d.spins.filter(s=>s.win).length],['Clowns',d.spins.filter(s=>!s.win).length]].map(([a,b])=>`<div>${a}<br><b style="font-size:22px">${b}</b></div>`).join('');
+ $('users').innerHTML='<tr><th>User</th><th>Name</th><th>Points</th><th>Spun?</th><th>IP</th><th>Actions</th></tr>'+d.users.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${u.points}</td><td>${u.spun?'Yes':'No'}</td><td>${esc(u.ip)}</td><td>
+  <button class="g" onclick="pts('${u.id}',1)">+ pts</button><button onclick="pts('${u.id}',-1)">- pts</button><button onclick="act('reset',{id:'${u.id}'})">Reset spin</button>
+  <button class="r" onclick="act('ban',{id:'${u.id}',banned:${!u.banned}})">${u.banned?'Unban':'Ban'}</button><button class="r" onclick="if(confirm('Delete user?'))act('delete-user',{id:'${u.id}'})">Delete</button></td></tr>`).join('');
+ $('set').innerHTML=d.prizes.map(p=>`<label>${p.emoji} ${esc(p.label||'Clown')} <input type="number" min="0" max="100" data-k="${p.key}" value="${p.weight}" style="width:70px">%</label> `).join('<br>')+`<br><label>Points per spin <input id="cost" type="number" value="${d.cost}" style="width:90px"></label> <button class="g" id="sv">Save</button>`;
+ $('sv').onclick=()=>{const weights={};document.querySelectorAll('[data-k]').forEach(i=>weights[i.dataset.k]=i.value);act('settings',{weights,cost:$('cost').value})};
+ $('spins').innerHTML='<tr><th>Time</th><th>User</th><th>Name</th><th>Prize</th><th>IP</th></tr>'+d.spins.map(s=>`<tr><td>${new Date(s.time).toLocaleString()}</td><td>${esc(s.username)}</td><td>${esc(s.name)}</td><td>${s.emoji} ${esc(s.label)}</td><td>${esc(s.ip)}</td></tr>`).join('');
+ $('ips').innerHTML='<tr><th>IP</th><th>Signed up</th><th>Spun</th><th></th></tr>'+d.ips.map(i=>`<tr><td>${esc(i.ip)}</td><td>${esc(i.signup||'-')}</td><td>${esc(i.spun||'-')}</td><td>${i.spun?`<button onclick="act('reset-ip',{ip:'${esc(i.ip)}'})">Reset IP spin</button>`:''}</td></tr>`).join('')}
+ catch(e){if(e.code===401){$('login').style.display='block';$('main').style.display='none'}else alert(e.message)}}
+function pts(id,s){const v=prompt('How many points?','100');if(v)act('points',{id,delta:s*parseInt(v,10)})}
+if(tok)load();
+</script></body></html>
